@@ -1,5 +1,6 @@
 'use client'
 import Link from "next/link"
+import { signOut } from "next-auth/react"
 
 const AdminNavbar = () => {
 
@@ -14,6 +15,12 @@ const AdminNavbar = () => {
             </Link>
             <div className="flex items-center gap-3">
                 <p>Hi, Admin</p>
+                <button
+                    onClick={() => signOut({ callbackUrl: "/admin/login" })}
+                    className="text-sm text-slate-500 hover:text-slate-700 transition"
+                >
+                    Sign out
+                </button>
             </div>
         </div>
     )
