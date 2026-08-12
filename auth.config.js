@@ -2,6 +2,7 @@
 // runs on the Edge runtime. The full config (auth.js) extends this with the
 // adapter and providers, and runs only in the Node runtime (API routes).
 export const authConfig = {
+    trustHost: true, // required behind any reverse proxy (EasyPanel, Docker) — see errors.authjs.dev#untrustedhost
     pages: {
         signIn: "/admin/login",
     },
