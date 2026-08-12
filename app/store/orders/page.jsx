@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from "react"
 import Loading from "@/components/Loading"
-import { orderDummyData } from "@/assets/assets"
+import toast from "react-hot-toast"
 
 export default function StoreOrders() {
     const [orders, setOrders] = useState([])
@@ -11,14 +11,20 @@ export default function StoreOrders() {
 
 
     const fetchOrders = async () => {
-       setOrders(orderDummyData)
-       setLoading(false)
+        const res = await fetch('/api/store/orders')
+        const data = await res.json()
+        setOrders(res.ok ? data : [])
+        setLoading(false)
     }
 
     const updateOrderStatus = async (orderId, status) => {
-        // Logic to update the status of an order
-
-
+        const res = await fetch(`/api/orders/${orderId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+        })
+        if (!res.ok) throw new Error('Failed to update order status')
+        fetchOrders()
     }
 
     const openModal = (order) => {
@@ -77,7 +83,7 @@ export default function StoreOrders() {
                                     <td className="px-4 py-3" onClick={(e) => { e.stopPropagation() }}>
                                         <select
                                             value={order.status}
-                                            onChange={e => updateOrderStatus(order.id, e.target.value)}
+                                            onChange={e => toast.promise(updateOrderStatus(order.id, e.target.value), { loading: 'Updating status...', success: 'Status updated', error: 'Failed to update status' })}
                                             className="border-gray-300 rounded-md text-sm focus:ring focus:ring-blue-200"
                                         >
                                             <option value="ORDER_PLACED">ORDER_PLACED</option>

@@ -1,15 +1,18 @@
 import { PlusIcon, SquarePenIcon, XIcon } from 'lucide-react';
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import AddressModal from './AddressModal';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import { setAddresses } from '@/lib/features/address/addressSlice';
+import { clearCart } from '@/lib/features/cart/cartSlice';
 
 const OrderSummary = ({ totalPrice, items }) => {
 
     const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '$';
 
     const router = useRouter();
+    const dispatch = useDispatch();
 
     const addressList = useSelector(state => state.address.list);
 
@@ -19,14 +22,53 @@ const OrderSummary = ({ totalPrice, items }) => {
     const [couponCodeInput, setCouponCodeInput] = useState('');
     const [coupon, setCoupon] = useState('');
 
+    useEffect(() => {
+        fetch('/api/addresses')
+            .then(async (res) => dispatch(setAddresses(res.ok ? await res.json() : [])))
+    }, [dispatch])
+
     const handleCouponCode = async (event) => {
         event.preventDefault();
-        
+
+        const res = await fetch('/api/coupons/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: couponCodeInput }),
+        })
+        const data = await res.json()
+
+        if (!res.ok) {
+            toast.error(data.error || 'Invalid coupon')
+            return
+        }
+
+        setCoupon(data)
     }
 
     const handlePlaceOrder = async (e) => {
         e.preventDefault();
 
+        if (!selectedAddress) {
+            toast.error('Select an address')
+            return
+        }
+
+        const res = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                addressId: selectedAddress.id,
+                items: items.map((item) => ({ productId: item.id, quantity: item.quantity })),
+                couponCode: coupon ? coupon.code : undefined,
+            }),
+        })
+
+        if (!res.ok) {
+            const data = await res.json()
+            throw new Error(data.error || 'Failed to place order')
+        }
+
+        dispatch(clearCart())
         router.push('/orders')
     }
 
@@ -38,9 +80,9 @@ const OrderSummary = ({ totalPrice, items }) => {
                 <input type="radio" id="COD" onChange={() => setPaymentMethod('COD')} checked={paymentMethod === 'COD'} className='accent-gray-500' />
                 <label htmlFor="COD" className='cursor-pointer'>COD</label>
             </div>
-            <div className='flex gap-2 items-center mt-1'>
-                <input type="radio" id="STRIPE" name='payment' onChange={() => setPaymentMethod('STRIPE')} checked={paymentMethod === 'STRIPE'} className='accent-gray-500' />
-                <label htmlFor="STRIPE" className='cursor-pointer'>Stripe Payment</label>
+            <div className='flex gap-2 items-center mt-1 opacity-50'>
+                <input type="radio" id="STRIPE" name='payment' disabled className='accent-gray-500' />
+                <label htmlFor="STRIPE" className='cursor-not-allowed'>Stripe Payment (coming soon)</label>
             </div>
             <div className='my-4 py-4 border-y border-slate-200 text-slate-400'>
                 <p>Address</p>
@@ -101,7 +143,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                 <p>Total:</p>
                 <p className='font-medium text-right'>{currency}{coupon ? (totalPrice - (coupon.discount / 100 * totalPrice)).toFixed(2) : totalPrice.toLocaleString()}</p>
             </div>
-            <button onClick={e => toast.promise(handlePlaceOrder(e), { loading: 'placing Order...' })} className='w-full bg-slate-700 text-white py-2.5 rounded hover:bg-slate-900 active:scale-95 transition-all'>Place Order</button>
+            <button onClick={e => toast.promise(handlePlaceOrder(e), { loading: 'placing Order...', success: 'Order placed!', error: (err) => err.message })} className='w-full bg-slate-700 text-white py-2.5 rounded hover:bg-slate-900 active:scale-95 transition-all'>Place Order</button>
 
             {showAddressModal && <AddressModal setShowAddressModal={setShowAddressModal} />}
 
