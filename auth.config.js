@@ -24,6 +24,7 @@ export const authConfig = {
         },
         session({ session, token }) {
             if (session.user) {
+                session.user.id = token.sub
                 session.user.role = token.role
                 session.user.storeId = token.storeId ?? null
             }
