@@ -3,11 +3,12 @@ import { assets } from '@/assets/assets'
 import { ArrowRightIcon, ChevronRightIcon } from 'lucide-react'
 import Image from 'next/image'
 import React from 'react'
+import { useSelector } from 'react-redux'
 import CategoriesMarquee from './CategoriesMarquee'
 
 const Hero = () => {
 
-    const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '$'
+    const currency = useSelector(state => state.config.currencySymbol)
 
     return (
         <div className='mx-6'>

@@ -5,10 +5,11 @@ import Image from "next/image"
 import { Trash2Icon } from "lucide-react"
 import Loading from "@/components/Loading"
 import { useSession } from "next-auth/react"
+import { useSelector } from "react-redux"
 
 export default function StoreManageProducts() {
 
-    const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '$'
+    const currency = useSelector(state => state.config.currencySymbol)
     const { data: session } = useSession()
 
     const [loading, setLoading] = useState(true)

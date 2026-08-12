@@ -10,12 +10,13 @@ import { clearCart } from '@/lib/features/cart/cartSlice';
 
 const OrderSummary = ({ totalPrice, items }) => {
 
-    const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '$';
+    const currency = useSelector(state => state.config.currencySymbol);
 
     const router = useRouter();
     const dispatch = useDispatch();
 
     const addressList = useSelector(state => state.address.list);
+    const culqiPublicKey = useSelector(state => state.config.culqiPublicKey);
 
     const [paymentMethod, setPaymentMethod] = useState('COD');
     const [selectedAddress, setSelectedAddress] = useState(null);
@@ -198,7 +199,7 @@ const OrderSummary = ({ totalPrice, items }) => {
             <Script
                 src="https://checkout.culqi.com/js/v4"
                 onLoad={() => {
-                    window.Culqi.publicKey = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY
+                    window.Culqi.publicKey = culqiPublicKey
                     setCulqiReady(true)
                 }}
             />

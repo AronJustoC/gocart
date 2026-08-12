@@ -4,10 +4,11 @@ import { toast } from "react-hot-toast"
 import Image from "next/image"
 import { Trash2Icon } from "lucide-react"
 import Loading from "@/components/Loading"
+import { useSelector } from "react-redux"
 
 export default function AdminProducts() {
 
-    const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '$'
+    const currency = useSelector(state => state.config.currencySymbol)
 
     const [loading, setLoading] = useState(true)
     const [products, setProducts] = useState([])
