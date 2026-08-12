@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { validateCoupon } from "@/lib/coupon"
+import { createCharge, refundCharge } from "@/lib/culqi"
 
 const orderInclude = {
     orderItems: { include: { product: true } },
@@ -26,7 +27,14 @@ export async function POST(request) {
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const body = await request.json()
-    const { addressId, items, couponCode } = body
+    const { addressId, items, couponCode, paymentMethod, culqiToken } = body
+
+    if (paymentMethod !== undefined && paymentMethod !== "COD" && paymentMethod !== "CULQI") {
+        return NextResponse.json({ error: "Unsupported payment method" }, { status: 400 })
+    }
+    if (paymentMethod === "CULQI" && !culqiToken) {
+        return NextResponse.json({ error: "Missing payment token" }, { status: 400 })
+    }
 
     if (!Array.isArray(items) || items.length === 0) {
         return NextResponse.json({ error: "Cart is empty" }, { status: 400 })
@@ -68,39 +76,66 @@ export async function POST(request) {
         groups.get(product.storeId).push({ product, quantity })
     }
 
-    const orders = await prisma.$transaction(async (tx) => {
-        const created = []
-        for (const [storeId, groupItems] of groups) {
-            const subtotal = groupItems.reduce((sum, { product, quantity }) => sum + product.price * quantity, 0)
-            // percentage discount applied per-group is already proportional to the whole cart
-            const rawTotal = coupon ? subtotal * (1 - coupon.discount / 100) : subtotal
-            const total = Math.round(rawTotal * 100) / 100
+    // percentage discount applied per-group is already proportional to the whole cart
+    const groupTotals = new Map()
+    for (const [storeId, groupItems] of groups) {
+        const subtotal = groupItems.reduce((sum, { product, quantity }) => sum + product.price * quantity, 0)
+        const rawTotal = coupon ? subtotal * (1 - coupon.discount / 100) : subtotal
+        groupTotals.set(storeId, Math.round(rawTotal * 100) / 100)
+    }
 
-            const order = await tx.order.create({
-                data: {
-                    userId: session.user.id,
-                    storeId,
-                    addressId,
-                    total,
-                    paymentMethod: "COD",
-                    isPaid: false,
-                    status: "ORDER_PLACED",
-                    isCouponUsed: Boolean(coupon),
-                    coupon: coupon ? { code: coupon.code, discount: coupon.discount } : {},
-                    orderItems: {
-                        create: groupItems.map(({ product, quantity }) => ({
-                            productId: product.id,
-                            quantity,
-                            price: product.price,
-                        })),
+    let chargeId = null
+    let chargeAmountCents = null
+    if (paymentMethod === "CULQI") {
+        const overallTotal = [...groupTotals.values()].reduce((sum, t) => sum + t, 0)
+        chargeAmountCents = Math.round(overallTotal * 100)
+        const result = await createCharge({
+            amount: chargeAmountCents,
+            email: session.user.email,
+            sourceId: culqiToken,
+        })
+        // card declined or Culqi error — no Order gets created, same all-or-nothing
+        // principle as the stock/address checks above
+        if (!result.success) return NextResponse.json({ error: result.error }, { status: 402 })
+        chargeId = result.charge.id
+    }
+
+    try {
+        const orders = await prisma.$transaction(async (tx) => {
+            const created = []
+            for (const [storeId, groupItems] of groups) {
+                const order = await tx.order.create({
+                    data: {
+                        userId: session.user.id,
+                        storeId,
+                        addressId,
+                        total: groupTotals.get(storeId),
+                        paymentMethod: paymentMethod === "CULQI" ? "CULQI" : "COD",
+                        isPaid: paymentMethod === "CULQI",
+                        chargeId,
+                        status: "ORDER_PLACED",
+                        isCouponUsed: Boolean(coupon),
+                        coupon: coupon ? { code: coupon.code, discount: coupon.discount } : {},
+                        orderItems: {
+                            create: groupItems.map(({ product, quantity }) => ({
+                                productId: product.id,
+                                quantity,
+                                price: product.price,
+                            })),
+                        },
                     },
-                },
-                include: orderInclude,
-            })
-            created.push(order)
-        }
-        return created
-    })
+                    include: orderInclude,
+                })
+                created.push(order)
+            }
+            return created
+        })
 
-    return NextResponse.json(orders, { status: 201 })
+        return NextResponse.json(orders, { status: 201 })
+    } catch (err) {
+        // the card was already charged — an order-creation failure here must not
+        // leave a paid charge with no order behind it
+        if (chargeId) await refundCharge({ chargeId, amount: chargeAmountCents, reason: "order_creation_failed" })
+        throw err
+    }
 }

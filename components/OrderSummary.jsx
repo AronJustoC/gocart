@@ -1,5 +1,6 @@
 import { PlusIcon, SquarePenIcon, XIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react'
+import Script from 'next/script';
 import AddressModal from './AddressModal';
 import { useDispatch, useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
@@ -21,11 +22,53 @@ const OrderSummary = ({ totalPrice, items }) => {
     const [showAddressModal, setShowAddressModal] = useState(false);
     const [couponCodeInput, setCouponCodeInput] = useState('');
     const [coupon, setCoupon] = useState('');
+    const [culqiReady, setCulqiReady] = useState(false);
+
+    const finalTotal = coupon ? totalPrice - (coupon.discount / 100 * totalPrice) : totalPrice
 
     useEffect(() => {
         fetch('/api/addresses')
             .then(async (res) => dispatch(setAddresses(res.ok ? await res.json() : [])))
     }, [dispatch])
+
+    const submitOrder = async (culqiToken) => {
+        const res = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                addressId: selectedAddress.id,
+                items: items.map((item) => ({ productId: item.id, quantity: item.quantity })),
+                couponCode: coupon ? coupon.code : undefined,
+                paymentMethod: culqiToken ? 'CULQI' : 'COD',
+                culqiToken,
+            }),
+        })
+
+        if (!res.ok) {
+            const data = await res.json()
+            throw new Error(data.error || 'Failed to place order')
+        }
+
+        dispatch(clearCart())
+        router.push('/orders')
+    }
+
+    // Culqi calls this global function once the card is tokenized inside its
+    // own modal — re-assigned every render so it always closes over the
+    // latest selectedAddress/items/coupon instead of a stale first-render value
+    useEffect(() => {
+        window.culqi = function () {
+            if (window.Culqi.token) {
+                toast.promise(submitOrder(window.Culqi.token.id), {
+                    loading: 'Placing order...',
+                    success: 'Order placed!',
+                    error: (err) => err.message,
+                })
+            } else if (window.Culqi.error) {
+                toast.error(window.Culqi.error.user_message || 'Payment failed')
+            }
+        }
+    })
 
     const handleCouponCode = async (event) => {
         event.preventDefault();
@@ -53,23 +96,28 @@ const OrderSummary = ({ totalPrice, items }) => {
             return
         }
 
-        const res = await fetch('/api/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                addressId: selectedAddress.id,
-                items: items.map((item) => ({ productId: item.id, quantity: item.quantity })),
-                couponCode: coupon ? coupon.code : undefined,
-            }),
-        })
-
-        if (!res.ok) {
-            const data = await res.json()
-            throw new Error(data.error || 'Failed to place order')
+        if (paymentMethod === 'CULQI') {
+            if (!culqiReady) {
+                toast.error('Payment form is still loading, try again in a moment')
+                return
+            }
+            // card data never touches our server — Culqi's modal tokenizes it,
+            // and the culqi() callback above submits the order once that's done
+            window.Culqi.settings({
+                title: 'GoCart',
+                currency: 'PEN',
+                description: 'Compra en GoCart',
+                amount: Math.round(finalTotal * 100),
+            })
+            window.Culqi.open()
+            return
         }
 
-        dispatch(clearCart())
-        router.push('/orders')
+        await toast.promise(submitOrder(null), {
+            loading: 'placing Order...',
+            success: 'Order placed!',
+            error: (err) => err.message,
+        })
     }
 
     return (
@@ -80,9 +128,9 @@ const OrderSummary = ({ totalPrice, items }) => {
                 <input type="radio" id="COD" onChange={() => setPaymentMethod('COD')} checked={paymentMethod === 'COD'} className='accent-gray-500' />
                 <label htmlFor="COD" className='cursor-pointer'>COD</label>
             </div>
-            <div className='flex gap-2 items-center mt-1 opacity-50'>
-                <input type="radio" id="STRIPE" name='payment' disabled className='accent-gray-500' />
-                <label htmlFor="STRIPE" className='cursor-not-allowed'>Stripe Payment (coming soon)</label>
+            <div className='flex gap-2 items-center mt-1'>
+                <input type="radio" id="CULQI" name='payment' onChange={() => setPaymentMethod('CULQI')} checked={paymentMethod === 'CULQI'} className='accent-gray-500' />
+                <label htmlFor="CULQI" className='cursor-pointer'>Tarjeta (Culqi)</label>
             </div>
             <div className='my-4 py-4 border-y border-slate-200 text-slate-400'>
                 <p>Address</p>
@@ -141,11 +189,19 @@ const OrderSummary = ({ totalPrice, items }) => {
             </div>
             <div className='flex justify-between py-4'>
                 <p>Total:</p>
-                <p className='font-medium text-right'>{currency}{coupon ? (totalPrice - (coupon.discount / 100 * totalPrice)).toFixed(2) : totalPrice.toLocaleString()}</p>
+                <p className='font-medium text-right'>{currency}{coupon ? finalTotal.toFixed(2) : totalPrice.toLocaleString()}</p>
             </div>
-            <button onClick={e => toast.promise(handlePlaceOrder(e), { loading: 'placing Order...', success: 'Order placed!', error: (err) => err.message })} className='w-full bg-slate-700 text-white py-2.5 rounded hover:bg-slate-900 active:scale-95 transition-all'>Place Order</button>
+            <button onClick={handlePlaceOrder} className='w-full bg-slate-700 text-white py-2.5 rounded hover:bg-slate-900 active:scale-95 transition-all'>Place Order</button>
 
             {showAddressModal && <AddressModal setShowAddressModal={setShowAddressModal} />}
+
+            <Script
+                src="https://checkout.culqi.com/js/v4"
+                onLoad={() => {
+                    window.Culqi.publicKey = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY
+                    setCulqiReady(true)
+                }}
+            />
 
         </div>
     )

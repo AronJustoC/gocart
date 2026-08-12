@@ -227,3 +227,9 @@ ALTER TABLE "Store" ADD CONSTRAINT "Store_userId_fkey" FOREIGN KEY ("userId") RE
 
 -- AlterTable
 ALTER TABLE "User" ADD COLUMN     "emailVerified" TIMESTAMP(3);
+
+-- AlterEnum
+ALTER TYPE "PaymentMethod" ADD VALUE 'CULQI';
+
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "chargeId" TEXT;

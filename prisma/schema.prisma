@@ -101,6 +101,7 @@ enum OrderStatus {
 enum PaymentMethod {
     COD
     STRIPE
+    CULQI
 }
 
 // Required for creating an Order: total, userId, storeId, addressId, isPaid, paymentMethod, isCouponUsed, coupon (JSON), orderItems (nested)
@@ -113,6 +114,7 @@ model Order {
     addressId     String
     isPaid        Boolean       @default(false)
     paymentMethod PaymentMethod
+    chargeId      String? // Culqi charge id (chr_...), only set for CULQI payments
     createdAt     DateTime      @default(now())
     updatedAt     DateTime      @updatedAt
     isCouponUsed  Boolean       @default(false)
