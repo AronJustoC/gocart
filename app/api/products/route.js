@@ -39,8 +39,9 @@ export async function POST(request) {
         return NextResponse.json({ error: "At least one image is required" }, { status: 400 })
     }
 
-    // vendors can only ever create for their own store — never trust the body
-    const storeId = session.user.role === "ADMIN" ? bodyStoreId : session.user.storeId
+    // a store owner always creates for their own store, even if they're also
+    // ADMIN — bodyStoreId only matters for an admin with no store of their own
+    const storeId = session.user.storeId || (session.user.role === "ADMIN" ? bodyStoreId : null)
     if (!storeId) return NextResponse.json({ error: "No store to create this product for" }, { status: 403 })
 
     const product = await prisma.product.create({
