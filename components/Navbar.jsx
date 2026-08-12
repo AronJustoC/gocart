@@ -1,13 +1,16 @@
 'use client'
 import { Search, ShoppingCart } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSelector } from "react-redux";
+import { useSession, signIn, signOut } from "next-auth/react";
 
 const Navbar = () => {
 
     const router = useRouter();
+    const { data: session } = useSession()
 
     const [search, setSearch] = useState('')
     const cartCount = useSelector(state => state.cart.total)
@@ -47,17 +50,30 @@ const Navbar = () => {
                             <button className="absolute -top-1 left-3 text-[8px] text-white bg-slate-600 size-3.5 rounded-full">{cartCount}</button>
                         </Link>
 
-                        <button className="px-8 py-2 bg-indigo-500 hover:bg-indigo-600 transition text-white rounded-full">
-                            Login
-                        </button>
+                        {session?.user ? (
+                            <button onClick={() => signOut({ callbackUrl: '/' })} className="flex items-center gap-2 text-slate-600">
+                                <Image src={session.user.image} alt={session.user.name} width={28} height={28} className="rounded-full" />
+                                Sign out
+                            </button>
+                        ) : (
+                            <button onClick={() => signIn('google')} className="px-8 py-2 bg-indigo-500 hover:bg-indigo-600 transition text-white rounded-full">
+                                Login
+                            </button>
+                        )}
 
                     </div>
 
                     {/* Mobile User Button  */}
                     <div className="sm:hidden">
-                        <button className="px-7 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-sm transition text-white rounded-full">
-                            Login
-                        </button>
+                        {session?.user ? (
+                            <button onClick={() => signOut({ callbackUrl: '/' })}>
+                                <Image src={session.user.image} alt={session.user.name} width={32} height={32} className="rounded-full" />
+                            </button>
+                        ) : (
+                            <button onClick={() => signIn('google')} className="px-7 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-sm transition text-white rounded-full">
+                                Login
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
