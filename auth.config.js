@@ -10,15 +10,23 @@ export const authConfig = {
     providers: [],
     callbacks: {
         authorized({ auth, request }) {
-            if (request.nextUrl.pathname === "/admin/login") return true
-            return auth?.user?.role === "ADMIN"
+            const { pathname } = request.nextUrl
+            if (pathname === "/admin/login") return true
+            if (pathname.startsWith("/admin")) return auth?.user?.role === "ADMIN"
+            if (pathname.startsWith("/store")) return Boolean(auth?.user?.storeId)
+            return true
         },
-        jwt({ token, user }) {
-            if (user) token.role = user.role
+        // edge-safe passthrough — the real claim-minting jwt callback (with the
+        // Prisma store lookup) lives in auth.js and runs only in the Node
+        // runtime. This one just preserves whatever's already in the token.
+        jwt({ token }) {
             return token
         },
         session({ session, token }) {
-            if (session.user) session.user.role = token.role
+            if (session.user) {
+                session.user.role = token.role
+                session.user.storeId = token.storeId ?? null
+            }
             return session
         },
     },

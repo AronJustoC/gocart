@@ -1,5 +1,4 @@
 'use client'
-import { dummyAdminDashboardData } from "@/assets/assets"
 import Loading from "@/components/Loading"
 import OrdersAreaChart from "@/components/OrdersAreaChart"
 import { CircleDollarSignIcon, ShoppingBasketIcon, StoreIcon, TagsIcon } from "lucide-react"
@@ -26,7 +25,9 @@ export default function AdminDashboard() {
     ]
 
     const fetchDashboardData = async () => {
-        setDashboardData(dummyAdminDashboardData)
+        const res = await fetch('/api/admin/stats')
+        const data = await res.json()
+        setDashboardData(data)
         setLoading(false)
     }
 

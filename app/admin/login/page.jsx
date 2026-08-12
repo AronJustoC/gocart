@@ -1,9 +1,18 @@
 'use client'
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { signIn } from "next-auth/react"
+import { useSearchParams } from "next/navigation"
 import { toast } from "react-hot-toast"
 
-const AdminLoginPage = () => {
+const AdminLoginForm = () => {
+
+    const searchParams = useSearchParams()
+    const requestedCallback = searchParams.get("callbackUrl")
+    // only ever navigate to a same-origin relative path — a raw external
+    // callbackUrl would be an open redirect straight out of a login form
+    const callbackUrl = requestedCallback?.startsWith("/") && !requestedCallback.startsWith("//")
+        ? requestedCallback
+        : "/admin"
 
     const [credentials, setCredentials] = useState({ email: '', password: '' })
     const [loading, setLoading] = useState(false)
@@ -28,7 +37,7 @@ const AdminLoginPage = () => {
             return
         }
 
-        window.location.href = "/admin"
+        window.location.href = callbackUrl
     }
 
     return (
@@ -73,7 +82,7 @@ const AdminLoginPage = () => {
                 </div>
 
                 <button
-                    onClick={() => signIn("google", { callbackUrl: "/admin" })}
+                    onClick={() => signIn("google", { callbackUrl })}
                     className="border border-slate-200 text-slate-700 text-sm font-medium py-2.5 rounded-md hover:bg-slate-50 active:scale-95 transition-all"
                 >
                     Sign in with Google
@@ -82,5 +91,11 @@ const AdminLoginPage = () => {
         </div>
     )
 }
+
+const AdminLoginPage = () => (
+    <Suspense>
+        <AdminLoginForm />
+    </Suspense>
+)
 
 export default AdminLoginPage

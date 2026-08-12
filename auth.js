@@ -9,6 +9,19 @@ import { authConfig } from "@/auth.config"
 export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig,
     adapter: PrismaAdapter(prisma),
+    callbacks: {
+        ...authConfig.callbacks,
+        // overrides the edge-safe passthrough — only this Node-runtime instance
+        // does the Prisma lookup, at sign-in time (`user` is only set then)
+        async jwt({ token, user }) {
+            if (user) {
+                token.role = user.role
+                const store = await prisma.store.findUnique({ where: { userId: user.id } })
+                token.storeId = store?.isActive ? store.id : null
+            }
+            return token
+        },
+    },
     providers: [
         Google,
         Credentials({

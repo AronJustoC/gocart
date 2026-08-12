@@ -1,10 +1,13 @@
 'use client'
 import { assets } from "@/assets/assets"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "react-hot-toast"
 
 export default function StoreAddProduct() {
+
+    const router = useRouter()
 
     const categories = ['Electronics', 'Clothing', 'Home & Kitchen', 'Beauty & Health', 'Toys & Games', 'Sports & Outdoors', 'Books & Media', 'Food & Drink', 'Hobbies & Crafts', 'Others']
 
@@ -25,8 +28,33 @@ export default function StoreAddProduct() {
 
     const onSubmitHandler = async (e) => {
         e.preventDefault()
-        // Logic to add a product
-        
+
+        const files = Object.values(images).filter(Boolean)
+        if (files.length === 0) {
+            toast.error("Add at least one image")
+            return
+        }
+
+        setLoading(true)
+        try {
+            const formData = new FormData()
+            files.forEach((file) => formData.append("images", file))
+
+            const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData })
+            if (!uploadRes.ok) throw new Error('Image upload failed')
+            const { urls } = await uploadRes.json()
+
+            const productRes = await fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...productInfo, images: urls }),
+            })
+            if (!productRes.ok) throw new Error('Failed to create product')
+
+            router.push('/store/manage-product')
+        } finally {
+            setLoading(false)
+        }
     }
 
 

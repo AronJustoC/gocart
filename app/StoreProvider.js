@@ -1,7 +1,18 @@
 'use client'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Provider } from 'react-redux'
+import { SessionProvider } from 'next-auth/react'
 import { makeStore } from '../lib/store'
+import { setProduct } from '../lib/features/product/productSlice'
+
+function ProductFetcher({ store }) {
+  useEffect(() => {
+    fetch('/api/products')
+      .then((res) => res.json())
+      .then((products) => store.dispatch(setProduct(products)))
+  }, [store])
+  return null
+}
 
 export default function StoreProvider({ children }) {
   const storeRef = useRef(undefined)
@@ -10,5 +21,12 @@ export default function StoreProvider({ children }) {
     storeRef.current = makeStore()
   }
 
-  return <Provider store={storeRef.current}>{children}</Provider>
+  return (
+    <SessionProvider>
+      <Provider store={storeRef.current}>
+        <ProductFetcher store={storeRef.current} />
+        {children}
+      </Provider>
+    </SessionProvider>
+  )
 }
